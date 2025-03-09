@@ -1,8 +1,24 @@
+use request::{Method, Request};
+use response::{IntoResponse, Response, StatusCode};
 use std::{
     collections::HashMap,
+    fmt::Display,
     io::{Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
+    str::FromStr,
 };
+
+mod request;
+mod response;
+// Exercise 1:
+//
+// 1. Add a state variable on the server that keeps track of String data that can be set and cleared. (This mimicks a database)
+// 2. Create 4 routes:
+//    - GET /state: returns the current state
+//    - POST /state: sets the state to the body of the request
+//    - DELETE /state: clears the state
+//    - GET /: returns a simple "Hello, world!" response
+//    - Any other route returns a 404 response
 
 fn main() -> std::io::Result<()> {
     let port: u16 = 8080;
@@ -12,54 +28,41 @@ fn main() -> std::io::Result<()> {
 
     let listener = TcpListener::bind(addr)?;
 
+    let mut state = String::new();
+
     for stream in listener.incoming() {
-        let stream = stream?;
-        handle_conn(stream);
+        let conn = stream?;
+        handle_conn(conn, &mut state);
     }
     Ok(())
 }
 
-fn handle_conn(mut stream: TcpStream) {
+fn handle_conn(mut stream: TcpStream, state: &mut String) {
     let mut buffer = [0; 1024];
-
     let n = stream.read(&mut buffer).unwrap();
+    let buffer = &buffer[..n];
 
-    let buf = &buffer[..n];
-
-    if let Some(req) = Request::parse(buf) {
-        println!("Headers: {:#?}", req.headers);
-        println!("Body: {:?}", req.body);
+    if let Some(req) = Request::parse(&buffer) {
+        let res = create_response(req, state);
+        stream.write_all(&res.into_response().to_bytes()).unwrap();
+        stream.flush().unwrap();
     } else {
         println!("Failed to parse request");
     }
-
-    let response = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\n<p> Test </p>";
-    stream.write_all(response.as_bytes()).unwrap();
-    stream.flush().unwrap();
 }
 
-pub struct Request {
-    headers: HashMap<String, String>,
-    body: String,
-}
-
-impl Request {
-    fn parse(buf: &[u8]) -> Option<Self> {
-        let header_end = buf.windows(4).position(|w| w == b"\r\n\r\n")?;
-        let headers_bytes = &buf[..header_end];
-
-        let body = &buf[header_end + 4..];
-        let headers_str = std::str::from_utf8(headers_bytes).ok()?;
-        let mut headers = HashMap::new();
-
-        for line in headers_str.split("\r\n").skip(1) {
-            if let Some((key, value)) = line.split_once(':') {
-                headers.insert(key.trim().to_string(), value.trim().to_string());
-            }
+fn create_response(req: Request, state: &mut String) -> impl IntoResponse {
+    match (req.method(), req.path().as_str()) {
+        (Method::GET, "/") => (StatusCode::OK, "Hello, world!".to_string()),
+        (Method::GET, "/state") => (StatusCode::Created, state.to_owned()),
+        (Method::POST, "/state") => {
+            *state = req.body().to_owned();
+            (StatusCode::Created, state.to_owned())
         }
-        Some(Request {
-            headers,
-            body: String::from_utf8_lossy(body).to_string(),
-        })
+        (Method::DELETE, "/state") => {
+            *state = String::new();
+            (StatusCode::OK, state.clone())
+        }
+        _ => (StatusCode::NotFound, "Not Found".to_string()),
     }
 }
