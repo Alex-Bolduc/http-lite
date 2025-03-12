@@ -64,20 +64,31 @@ impl From<(StatusCode, &str)> for Response {
 }
 
 pub trait IntoResponse {
-    fn into_response(&self) -> Response;
+    fn into_response(self) -> Response;
 }
 impl IntoResponse for (StatusCode, String) {
-    fn into_response(&self) -> Response {
+    fn into_response(self) -> Response {
         Response::new(self.0, HashMap::default(), self.1.as_bytes().to_vec())
     }
 }
 impl IntoResponse for (StatusCode, &str) {
-    fn into_response(&self) -> Response {
+    fn into_response(self) -> Response {
         Response::new(self.0, HashMap::default(), self.1.as_bytes().to_vec())
     }
 }
+impl IntoResponse for (StatusCode, HashMap<String, String>, &str) {
+    fn into_response(self) -> Response {
+        Response::new(self.0, self.1, self.2.as_bytes().to_vec())
+    }
+}
+impl IntoResponse for (StatusCode, HashMap<String, String>, String) {
+    fn into_response(self) -> Response {
+        Response::new(self.0, self.1, self.2.as_bytes().to_vec())
+    }
+}
+
 impl IntoResponse for &str {
-    fn into_response(&self) -> Response {
+    fn into_response(self) -> Response {
         Response::new(StatusCode::OK, HashMap::default(), self.as_bytes().to_vec())
     }
 }

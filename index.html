@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Fun HTML Document</title>
+    <style>
+        body {
+            background-color: #f0f8ff;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(45deg, #ff9a9e, #fad0c4);
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        section {
+            margin-top: 20px;
+        }
+
+        .card {
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid #ddd;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: center;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .fun-fact {
+            font-style: italic;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Welcome to the Fun HTML Document!</h1>
+        <p>Enjoy some sample data and quirky design</p>
+    </header>
+
+    <section class="card">
+        <h2>Sample Data Table</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Favorite Color</th>
+                    <th>Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>Alice</td>
+                    <td>Blue</td>
+                    <td>92</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>Bob</td>
+                    <td>Green</td>
+                    <td>85</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>Charlie</td>
+                    <td>Red</td>
+                    <td>78</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>Diana</td>
+                    <td>Purple</td>
+                    <td>88</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>Random Fun Fact</h2>
+        <p class="fun-fact">
+            Did you know? Honey never spoils. Archaeologists have found pots of honey in ancient Egyptian tombs that are
+            over 3000 years old and still perfectly good to eat!
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Todo List</h2>
+        <ul>
+            <li>Learn Rust</li>
+            <li>Build a web server</li>
+            <li>Explore async I/O</li>
+            <li>Drink some coffee</li>
+            <li>Write fun HTML</li>
+        </ul>
+    </section>
+</body>
+
+</html>

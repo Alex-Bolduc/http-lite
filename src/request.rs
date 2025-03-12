@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Method {
     GET,
     POST,
