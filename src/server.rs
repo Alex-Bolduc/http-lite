@@ -7,8 +7,14 @@ use std::{
     collections::HashMap,
     fmt::Display,
     io::{Read, Write},
-    net::{SocketAddr, TcpListener},
-    sync::{Arc, RwLock},
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+    sync::RwLock,
 };
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -18,23 +24,17 @@ pub struct Todo {
     pub title: String,
 }
 
-pub fn get_state(_: Request, state: Arc<RwLock<Vec<Todo>>>) -> impl IntoResponse {
-    let state = state.read().unwrap();
+pub async fn get_state(_: Request, state: Arc<RwLock<Vec<Todo>>>) -> impl IntoResponse {
+    let state = state.read().await;
     let todos = state.iter().map(|todo| todo).collect::<Vec<_>>();
     let todos = serde_json::to_string(&todos).expect("Failed to serialize todos");
 
     let headers = HashMap::from([("Content-Type".to_string(), "application/json".to_string())]);
-
     (StatusCode::OK, headers, todos)
 }
-// fn static_index(_: Request, _: Arc<Mutex<String>>) -> impl IntoResponse {
-//     let data = include_str!("../../static/index.html");
-//     let headers: HashMap<String, String> =
-//         HashMap::from([("Content-Type".into(), "text/html".into())]);
-//     (StatusCode::OK, headers, data)
-// }
 
-type Handler<S> = Box<(dyn Fn(Request, S) -> Response + Send + Sync)>;
+type Handler<S> =
+    Box<(dyn Fn(Request, S) -> Pin<Box<dyn Future<Output = Response> + Send>> + Send + Sync)>;
 
 pub struct Router<S> {
     routes: HashMap<(&'static str, Method), Handler<S>>,
@@ -52,22 +52,30 @@ where
         }
     }
 
-    pub fn route<F, T>(mut self, method: Method, path: &'static str, handler: F) -> Self
+    pub fn route<F, Fut, T>(mut self, method: Method, path: &'static str, handler: F) -> Self
     where
-        F: (Fn(Request, S) -> T) + Send + Sync + 'static,
+        F: (Fn(Request, S) -> Fut) + Send + Sync + 'static,
+        Fut: Future<Output = T> + Send + 'static,
         T: IntoResponse,
     {
+        let handler = Arc::new(handler);
         self.routes.insert(
             (path, method),
-            Box::new(move |req, state| handler(req, state).into_response()),
+            Box::new(move |req, state| {
+                let handler = handler.clone();
+                let state = state.clone();
+
+                Box::pin(async move { (handler)(req, state).await.into_response() })
+            }),
         );
+
         self
     }
 
-    fn handle(&self, req: Request) -> Response {
+    async fn handle(&self, req: Request) -> Response {
         for ((path, method), handler) in &self.routes {
             if method == req.method() && *path == req.path() {
-                return handler(req, self.state.clone());
+                return handler(req, self.state.clone()).await;
             }
         }
         (StatusCode::NotFound, "Not found").into()
@@ -87,35 +95,30 @@ where
             router: Arc::new(router),
         }
     }
+    pub async fn run(self, listener: TcpListener) -> std::io::Result<()> {
+        loop {
+            let (mut stream, _) = listener.accept().await?;
+            let router = self.router.clone();
 
-    pub fn run(self, listener: TcpListener) -> std::io::Result<()> {
-        for stream in listener.incoming() {
-            match stream {
-                Ok(mut socket) => {
-                    let router = self.router.clone();
-                    std::thread::spawn(move || {
-                        let mut buffer = [0; 1024];
-                        let n = socket.read(&mut buffer).unwrap();
-                        let buffer = &buffer[..n];
+            tokio::spawn(async move {
+                let mut buffer = [0; 1024];
+                let n = stream.read(&mut buffer).await.unwrap();
+                let buffer = &buffer[..n];
 
-                        if let Some(req) = Request::parse(buffer) {
-                            let res = router.handle(req);
-                            if let Err(e) = socket.write_all(&res.to_bytes()) {
-                                eprintln!("Failed to write to socket: {}", e);
-                            }
-                        } else {
-                            eprintln!("Failed to parse request");
-                            let res: Response = (StatusCode::BadRequest, "Bad Request").into();
-                            if let Err(e) = socket.write_all(&res.to_bytes()) {
-                                eprintln!("Failed to write error response: {}", e);
-                            }
-                        }
-                    });
+                if let Some(req) = Request::parse(buffer) {
+                    let res = router.handle(req).await;
+                    if let Err(e) = stream.write_all(&res.to_bytes()).await {
+                        eprintln!("Failed to write to stream: {}", e);
+                    }
+                } else {
+                    eprintln!("Failed to parse request");
+                    let res: Response = (StatusCode::BadRequest, "Bad Request").into();
+                    if let Err(e) = stream.write_all(&res.to_bytes()).await {
+                        eprintln!("Failed to write error response: {}", e);
+                    }
                 }
-                Err(e) => eprintln!("Failed to accept connection: {}", e),
-            }
+            });
         }
-        Ok(())
     }
 }
 
